@@ -89,4 +89,10 @@ def run_inference(upload_filename):
     print("[+] Uploaded results to S3")
 
 if __name__ == "__main__":
-    run_inference("YOUR_UPLOADED_FILE.csv")
+    import sys
+    if len(sys.argv) < 2:
+        print("Usage: python3 pipline_infer.py <csv_filename>")
+        exit(1)
+
+    filename = sys.argv[1]
+    run_inference(filename)
