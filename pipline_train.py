@@ -9,7 +9,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
 
 # ------------ AWS CONFIG ------------
-S3_BUCKET = "your-bucket-name"
+S3_BUCKET = "evalon-ai-team1"
 MODEL_PREFIX = "models/"
 s3 = boto3.client("s3")
 
