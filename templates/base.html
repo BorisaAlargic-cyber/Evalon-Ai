@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EvalonAI Dashboard</title>
+
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- TailwindCSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <script src="https://kit.fontawesome.com/a2d9d6e55b.js" crossorigin="anonymous"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            background-color: #0F172A; /* Dark navy */
+            color: #E2E8F0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .evalon-header {
+            background: rgba(30, 41, 59, 0.85); 
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid #1E293B;
+        }
+
+        .logo-svg {
+            color: #22D3EE;
+        }
+
+        /* Table */
+        .table-header-dark {
+            background: #1F2937;
+            color: #A5B4FC;
+        }
+
+        /* Arbitrage score coloring */
+        .score-positive {
+            color: #10B981 !important; /* Green */
+            font-weight: 700;
+        }
+
+        .score-negative {
+            color: #EF4444 !important; /* Red */
+            font-weight: 700;
+        }
+
+        /* Chart container */
+        .chart-container {
+            width: 100%;
+            max-width: 900px;
+            background: #1E293B;
+            padding: 20px;
+            border-radius: 16px;
+        }
+
+        /* Sidebar scroll */
+        .filter-panel {
+            background-color: #111827;
+            border-right: 1px solid #1E293B;
+        }
+    </style>
+</head>
+
+<body>
+
+    {% block content %}
+    {% endblock %}
+
+</body>
+</html>

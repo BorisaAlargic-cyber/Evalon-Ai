@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="flex flex-col items-center justify-center h-full">
+
+    <h2 class="text-3xl font-bold mb-6">Upload Data for AI Analysis</h2>
+
+    <form action="{{ url_for('upload') }}" method="POST" enctype="multipart/form-data"
+          class="bg-[#2C3854] p-8 rounded-xl shadow-xl w-full max-w-md border border-[#3A4A6E]">
+
+        <label class="block mb-3 font-semibold">Select CSV File</label>
+        <input type="file" name="file" accept=".csv" class="w-full mb-6 text-white">
+
+        <button class="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-bold rounded-lg transition-all">
+            Upload & Analyze
+        </button>
+    </form>
+</div>
+
+{% endblock %}
