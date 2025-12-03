@@ -4,7 +4,7 @@ import numpy as np
 import boto3
 import pickle
 
-S3_BUCKET = "evalon-ai-team1"
+S3_BUCKET = "evalon-ai-team-1"
 RAW_PREFIX = "raw/"
 MODEL_PREFIX = "models/"
 RESULT_PREFIX = "results/"
