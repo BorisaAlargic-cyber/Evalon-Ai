@@ -88,6 +88,17 @@ def run_inference(upload_filename):
     df = pd.read_csv(local_raw)
     print(f"    - Loaded {len(df):,} rows.")
 
+    # --- NEW: SAMPLE ONLY 50K ROWS TO REDUCE MEMORY ---
+    MAX_ROWS = 50000
+    if len(df) > MAX_ROWS:
+        print(f"[!] Dataset has {len(df):,} rows — sampling down to {MAX_ROWS:,} rows...")
+        df = df.sample(n=MAX_ROWS, random_state=42).reset_index(drop=True)
+    else:
+        print(f"[+] Dataset has {len(df):,} rows — no sampling needed.")
+
+    print(f"[+] Using {len(df):,} rows for inference.\n")
+    # -----------------------------------------------------
+
     df = clean_and_engineer(df)
 
     result_list = []
@@ -125,6 +136,7 @@ def run_inference(upload_filename):
 
     print(f"[✓] Uploaded results to s3://{S3_BUCKET}/{RESULT_FILE}")
     print(f"\n[🏁] Total inference time: {time.time() - start_time:.2f} sec")
+
 
 if __name__ == "__main__":
     import sys
