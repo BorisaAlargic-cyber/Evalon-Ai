@@ -5,7 +5,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from werkzeug.utils import secure_filename
 import boto3
 
-S3_BUCKET = "your-bucket-name"
+S3_BUCKET = "evalon-ai-team-1"
 RAW_PREFIX = "raw/"
 RESULT_PREFIX = "results/"
 RESULT_FILE = RESULT_PREFIX + "rf_top50_each_city.csv"
