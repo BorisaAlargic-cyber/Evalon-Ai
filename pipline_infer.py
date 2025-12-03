@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import boto3
 import pickle
+import time
 
 S3_BUCKET = "evalon-ai-team-1"
 RAW_PREFIX = "raw/"
@@ -28,6 +29,7 @@ def calculate_distance(row):
     return ((lat - c_lat)**2 + (lon - c_lon)**2)**0.5
 
 def clean_and_engineer(df):
+    print("[*] Cleaning & feature engineering...")
     df = df.copy()
     df.columns = [c.lower() for c in df.columns]
 
@@ -37,14 +39,21 @@ def clean_and_engineer(df):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
+    # distance calculation
+    print("    - Calculating distance to city center...")
     df["distance_to_center"] = df.apply(calculate_distance, axis=1)
     df["distance_to_center"].fillna(df["distance_to_center"].median(), inplace=True)
 
+    # extra features
+    print("    - Creating ratio features...")
     df["price_m2"] = df["price"] / df["constructedarea"]
     df["rooms_per_m2"] = df["roomnumber"] / df["constructedarea"]
     df["bathrooms_per_room"] = df["bathnumber"] / df["roomnumber"].replace(0, np.nan)
 
+    print("    - Filling missing values...")
     df = df.fillna(df.median(numeric_only=True)).fillna("Unknown")
+
+    print("[+] Feature engineering complete.")
     return df
 
 def get_features(df):
@@ -57,24 +66,45 @@ def get_features(df):
 def load_model(city):
     local_path = f"/tmp/model_{city}.pkl"
     s3_key = MODEL_PREFIX + f"model_{city}.pkl"
+
+    print(f"[*] Downloading model for {city}...")
     s3.download_file(S3_BUCKET, s3_key, local_path)
+    print(f"    - Model downloaded: {local_path}")
+
     return pickle.load(open(local_path, "rb"))
 
 def run_inference(upload_filename):
-    # Download RAW CSV
+    start_time = time.time()
+
+    print(f"[+] Starting inference on: {upload_filename}")
+    print("[*] Downloading input CSV from S3...")
+
     local_raw = "/tmp/input.csv"
     s3.download_file(S3_BUCKET, RAW_PREFIX + upload_filename, local_raw)
 
+    print(f"    - File downloaded to {local_raw}")
+
+    print("[*] Loading CSV...")
     df = pd.read_csv(local_raw)
+    print(f"    - Loaded {len(df):,} rows.")
+
     df = clean_and_engineer(df)
 
     result_list = []
+    unique_cities = df["city"].unique()
+    print(f"[+] Cities found in data: {unique_cities}\n")
 
-    for city in df["city"].unique():
+    for city in unique_cities:
+        print(f"[===] Processing city: {city} [===]")
+        city_start = time.time()
+
         model = load_model(city)
         df_city = df[df["city"] == city].copy()
+        print(f"    - Rows for {city}: {len(df_city):,}")
 
         X = df_city[get_features(df_city)]
+
+        print("    - Running model.predict()...")
         preds = np.expm1(model.predict(X))
 
         df_city["predicted_price"] = preds
@@ -82,11 +112,19 @@ def run_inference(upload_filename):
 
         result_list.append(df_city)
 
+        print(f"[✓] Finished {city} in {time.time() - city_start:.2f} sec\n")
+
+    print("[*] Concatenating results...")
     final = pd.concat(result_list)
+
+    print("[*] Saving results to /tmp/results.csv...")
     final.to_csv("/tmp/results.csv", index=False)
 
+    print("[*] Uploading results to S3...")
     s3.upload_file("/tmp/results.csv", S3_BUCKET, RESULT_FILE)
-    print("[+] Uploaded results to S3")
+
+    print(f"[✓] Uploaded results to s3://{S3_BUCKET}/{RESULT_FILE}")
+    print(f"\n[🏁] Total inference time: {time.time() - start_time:.2f} sec")
 
 if __name__ == "__main__":
     import sys
