@@ -10,13 +10,12 @@
             <span class="text-white">Evalon</span><span class="text-cyan-400">AI</span>
         </h1>
     </div>
-
-    <a href="{{ url_for('upload') }}"
-       class="py-2 px-4 text-sm font-bold bg-cyan-600 rounded-lg hover:bg-cyan-500 transition-colors flex gap-2">
-        <i class="fa-solid fa-cloud-upload-alt"></i> Upload New Data
-    </a>
+    <div class="flex items-center gap-4">
+        <a href="{{ url_for('upload') }}" class="py-2 px-4 text-sm font-bold bg-cyan-600 rounded-lg hover:bg-cyan-500 transition-colors flex gap-2">
+            <i class="fa-solid fa-cloud-upload-alt"></i> Upload New Data
+        </a>
+    </div>
 </header>
-
 
 <main class="flex flex-1 overflow-hidden">
 
@@ -26,17 +25,15 @@
             <i class="fa-solid fa-filter text-cyan-400"></i> Opportunity Scan
         </h2>
 
-        <form action="{{ url_for('dashboard') }}" method="GET" class="space-y-5">
+        <form id="filterForm" action="{{ url_for('dashboard') }}" method="GET" class="space-y-5">
 
             <!-- CITY -->
-            <div>
+            <div class="filter-group">
                 <label class="text-blue-200 block mb-2 font-semibold">City</label>
                 <select name="city" class="w-full p-2.5 bg-gray-700 border border-gray-600 rounded text-white">
                     <option value="All">All Cities</option>
                     {% for city in cities %}
-                    <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>
-                        {{ city }}
-                    </option>
+                    <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>{{ city }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -56,7 +53,7 @@
             </div>
 
             <!-- PARKING -->
-            <div>
+            <div class="filter-group">
                 <label class="text-blue-200 mb-2">Parking Space Required</label>
                 <select name="parking" class="w-full p-2.5 bg-gray-700 border border-gray-600 rounded text-white">
                     <option value="All">No Preference</option>
@@ -65,10 +62,11 @@
                 </select>
             </div>
 
-            <!-- SUBMIT -->
-            <button class="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-bold rounded-lg">
-                <i class="fa-solid fa-magnifying-glass-chart"></i> Initiate AI Scan
+            <button type="submit"
+                    class="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-bold rounded-lg transition-all flex gap-2 justify-center">
+                <i class="fa-solid fa-magnifying-glass-chart"></i> Apply Filters
             </button>
+
         </form>
     </div>
 
@@ -82,10 +80,8 @@
             <div id="map" style="height: 420px; border-radius: 12px;"></div>
         </section>
 
-        <!-- Leaflet assets -->
         <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
 
         <!-- RESULTS TABLE -->
         <section>
@@ -107,7 +103,8 @@
                             <th class="p-4">Asset Id</th>
                             <th class="p-4">Asking Price</th>
                             <th class="p-4">AI Predicted</th>
-                            <th class="p-4 bg-[#2C3854]">Arbitrage Score</th>
+                            <th class="p-4 bg-[#2C3854]">Arbitrage (€)</th>
+                            <th class="p-4 bg-[#2C3854]">Undervalued (%)</th>
                             <th class="p-4 text-center">Rooms</th>
                             <th class="p-4 text-center">Baths</th>
                             <th class="p-4 text-center">Parking</th>
@@ -121,23 +118,28 @@
                         <tr class="hover:bg-[#2C3854] transition-colors">
                             <td class="p-4">{{ p.city }}</td>
                             <td class="p-4">{{ p.assetid }}</td>
-                            <td class="p-4">€{{ "%.0f"|format(p.price) }}</td>
-                            <td class="p-4">€{{ "%.0f"|format(p.predicted_price) }}</td>
+                            <td class="p-4">€{{ "%.2f"|format(p.price) }}</td>
+                            <td class="p-4">€{{ "%.2f"|format(p.predicted_price) }}</td>
 
                             <td class="p-4 bg-[#25304B] {{ 'score-positive' if p.arbitrage_score > 0 else 'score-negative' }}">
-                                €{{ "%.0f"|format(p.arbitrage_score) }}
+                                €{{ "%.2f"|format(p.arbitrage_score) }}
+                            </td>
+
+                            <td class="p-4 bg-[#25304B]">
+                                {{ "%.1f"|format(p.undervaluation_pct) }}%
                             </td>
 
                             <td class="p-4 text-center">{{ p.rooms }}</td>
                             <td class="p-4 text-center">{{ p.bathrooms }}</td>
-                            <td class="p-4 text-center">{{ 'Yes' if p.has_parking else 'No' }}</td>
+                            <td class="p-4 text-center">{{ "Yes" if p.has_parking else "No" }}</td>
 
                             <td class="p-4">{{ "%.0f"|format(p.dist_center_m) }}</td>
                             <td class="p-4">{{ "%.0f"|format(p.dist_metro_m) }}</td>
                         </tr>
+
                         {% else %}
                         <tr>
-                            <td colspan="10" class="text-center p-12 text-gray-500 italic">
+                            <td colspan="11" class="text-center p-12 text-gray-500 italic">
                                 <i class="fa-solid fa-robot text-4xl mb-3 block opacity-50"></i>
                                 No opportunities found.
                             </td>
@@ -146,52 +148,49 @@
                     </tbody>
                 </table>
             </div>
+
         </section>
+
     </div>
 </main>
 
 
 <!-- MAP SCRIPT -->
 <script>
-    const map = L.map('map').setView([40.0, -3.7], 6);
+    const map = L.map('map').setView([40.0, -3.7], 5);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18,
-        attribution: '&copy; OpenStreetMap contributors'
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18
     }).addTo(map);
 
-    const markers = L.featureGroup().addTo(map);
+    const markers = L.layerGroup().addTo(map);
 
-    const properties = {{ results | tojson }};
+    const data = {{ results | tojson }};
 
-    properties.forEach(p => {
+    data.forEach(p => {
         if (!p.latitude || !p.longitude) return;
-
-        const color = p.arbitrage_score > 0 ? "#0284C7" : "#38BDF8";
 
         const marker = L.circleMarker([p.latitude, p.longitude], {
             radius: 7,
-            color,
-            fillColor: color,
+            color: p.arbitrage_score > 0 ? "#10B981" : "#EF4444",
+            fillColor: p.arbitrage_score > 0 ? "#10B981" : "#EF4444",
             fillOpacity: 0.9,
-            weight: 2
         });
 
-        const popup = `
+        marker.bindPopup(`
             <strong>${p.city}</strong><br>
-            Price: €${p.price.toLocaleString()}<br>
-            Predicted: €${p.predicted_price.toLocaleString()}<br>
-            Arbitrage: <b style="color:${color}">€${p.arbitrage_score.toLocaleString()}</b><br>
-            Rooms: ${p.rooms}, Baths: ${p.bathrooms}<br>
-            Metro: ${p.dist_metro_m} m
-        `;
+            Price: €${p.price}<br>
+            Predicted: €${p.predicted_price}<br>
+            Arbitrage: €${p.arbitrage_score}<br>
+            Undervalue: ${p.undervaluation_pct.toFixed(1)}%<br>
+            Rooms: ${p.rooms}, Baths: ${p.bathrooms}
+        `);
 
-        marker.bindPopup(popup);
-        marker.addTo(markers);
+        markers.addLayer(marker);
     });
 
     if (markers.getLayers().length > 0) {
-        map.fitBounds(markers.getBounds(), { padding: [20, 20] });
+        map.fitBounds(markers.getBounds());
     }
 </script>
 

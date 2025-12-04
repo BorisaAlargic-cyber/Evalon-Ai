@@ -143,6 +143,10 @@ def run_inference(upload_filename):
         df_city["predicted_price"] = preds
         df_city["arbitrage_score"] = preds - df_city["price"]
 
+        df_city["undervaluation_pct"] = ((df_city["predicted_price"] - df_city["price"]) 
+                                 / df_city["predicted_price"]) * 100
+
+
         result_list.append(df_city)
 
         print(f"[✓] Finished {city} in {time.time() - city_start:.2f} sec\n")
