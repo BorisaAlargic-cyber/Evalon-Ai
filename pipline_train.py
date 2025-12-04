@@ -122,7 +122,7 @@ def train_and_save_model(df, city):
 
 # ----------- MAIN -----------
 def main():
-    df = pd.read_csv("Spain_RealEstate_Merged.csv")
+    df = pd.read_csv("Spain_RealEstate_Merged_part1.csv")
     df = clean_and_engineer(df)
 
     for city in sorted(df["city"].unique()):
