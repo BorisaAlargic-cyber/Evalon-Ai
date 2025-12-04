@@ -10,12 +10,13 @@
             <span class="text-white">Evalon</span><span class="text-cyan-400">AI</span>
         </h1>
     </div>
-    <div class="flex items-center gap-4">
-        <a href="{{ url_for('upload') }}" class="py-2 px-4 text-sm font-bold bg-cyan-600 rounded-lg hover:bg-cyan-500 transition-colors flex gap-2">
-            <i class="fa-solid fa-cloud-upload-alt"></i> Upload New Data
-        </a>
-    </div>
+
+    <a href="{{ url_for('upload') }}"
+       class="py-2 px-4 text-sm font-bold bg-cyan-600 rounded-lg hover:bg-cyan-500 transition-colors flex gap-2">
+        <i class="fa-solid fa-cloud-upload-alt"></i> Upload New Data
+    </a>
 </header>
+
 
 <main class="flex flex-1 overflow-hidden">
 
@@ -25,10 +26,10 @@
             <i class="fa-solid fa-filter text-cyan-400"></i> Opportunity Scan
         </h2>
 
-        <form id="filterForm" action="{{ url_for('dashboard') }}" method="GET" class="space-y-5">
+        <form action="{{ url_for('dashboard') }}" method="GET" class="space-y-5">
 
             <!-- CITY -->
-            <div class="filter-group">
+            <div>
                 <label class="text-blue-200 block mb-2 font-semibold">City</label>
                 <select name="city" class="w-full p-2.5 bg-gray-700 border border-gray-600 rounded text-white">
                     <option value="All">All Cities</option>
@@ -55,7 +56,7 @@
             </div>
 
             <!-- PARKING -->
-            <div class="filter-group">
+            <div>
                 <label class="text-blue-200 mb-2">Parking Space Required</label>
                 <select name="parking" class="w-full p-2.5 bg-gray-700 border border-gray-600 rounded text-white">
                     <option value="All">No Preference</option>
@@ -64,11 +65,10 @@
                 </select>
             </div>
 
-            <button type="submit"
-                    class="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-bold rounded-lg transition-all flex gap-2 justify-center">
+            <!-- SUBMIT -->
+            <button class="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-bold rounded-lg">
                 <i class="fa-solid fa-magnifying-glass-chart"></i> Initiate AI Scan
             </button>
-
         </form>
     </div>
 
@@ -82,59 +82,10 @@
             <div id="map" style="height: 420px; border-radius: 12px;"></div>
         </section>
 
-        <!-- Leaflet CSS + JS -->
+        <!-- Leaflet assets -->
         <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
         <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-        <script>
-            // Init map
-            const map = L.map('map', {
-                zoomControl: true,
-                scrollWheelZoom: true
-            }).setView([40.0, -3.7], 6);
-
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                maxZoom: 18,
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
-
-            const markerGroup = L.featureGroup().addTo(map);
-            const results = {{ results | tojson }};
-
-            results.forEach(item => {
-                if (!item.latitude || !item.longitude) return;
-
-                const color = item.arbitrage_score > 0 ? "#00C2FF" : "#FF6B6B";
-
-                const marker = L.circleMarker([item.latitude, item.longitude], {
-                    radius: 7,
-                    color,
-                    fillColor: color,
-                    fillOpacity: 0.85,
-                    weight: 2
-                });
-
-                marker.bindPopup(`
-                    <div style="color:#1e293b;">
-                        <strong style="color:${color}; font-size:14px;">${item.city}</strong><br>
-                        <b>Price:</b> €${item.price.toLocaleString()}<br>
-                        <b>Predicted:</b> €${item.predicted_price.toLocaleString()}<br>
-                        <b>Arbitrage:</b> <span style="color:${color}; font-weight:bold;">
-                            €${item.arbitrage_score.toLocaleString()}
-                        </span><br>
-                        <b>Rooms:</b> ${item.rooms} | <b>Baths:</b> ${item.bathrooms}<br>
-                        <b>Center:</b> ${item.dist_center_km} m |
-                        <b>Metro:</b> ${item.dist_metro_m ?? 0} m
-                    </div>
-                `);
-
-                marker.addTo(markerGroup);
-            });
-
-            if (markerGroup.getLayers().length > 0) {
-                map.fitBounds(markerGroup.getBounds(), { padding: [20, 20] });
-            }
-        </script>
 
         <!-- RESULTS TABLE -->
         <section>
@@ -142,7 +93,8 @@
                 <div>
                     <h2 class="text-2xl font-bold border-l-4 border-cyan-400 pl-4">Top 50 Investment Targets</h2>
                     <p class="text-gray-400 mt-2 text-sm">
-                        Found {{ results|length }} properties. Total {{ total_results }} analyzed.
+                        Found {{ results|length }} properties.  
+                        Total {{ total_results }} analyzed.
                     </p>
                 </div>
             </div>
@@ -165,21 +117,23 @@
                     </thead>
 
                     <tbody class="divide-y divide-gray-700 bg-[#202940]">
-
                         {% for p in results %}
                         <tr class="hover:bg-[#2C3854] transition-colors">
                             <td class="p-4">{{ p.city }}</td>
                             <td class="p-4">{{ p.assetid }}</td>
-                            <td class="p-4">€{{ "%.2f"|format(p.price) }}</td>
-                            <td class="p-4">€{{ "%.2f"|format(p.predicted_price) }}</td>
+                            <td class="p-4">€{{ "%.0f"|format(p.price) }}</td>
+                            <td class="p-4">€{{ "%.0f"|format(p.predicted_price) }}</td>
+
                             <td class="p-4 bg-[#25304B] {{ 'score-positive' if p.arbitrage_score > 0 else 'score-negative' }}">
-                                €{{ "%.2f"|format(p.arbitrage_score) }}
+                                €{{ "%.0f"|format(p.arbitrage_score) }}
                             </td>
+
                             <td class="p-4 text-center">{{ p.rooms }}</td>
                             <td class="p-4 text-center">{{ p.bathrooms }}</td>
-                            <td class="p-4 text-center">{{ "Yes" if p.has_parking else "No" }}</td>
-                            <td class="p-4">{{ "%.0f"|format(p.dist_center_km) }} m</td>
-                            <td class="p-4">{{ "%.0f"|format(p.get('dist_metro_m', 0)) }} m</td>
+                            <td class="p-4 text-center">{{ 'Yes' if p.has_parking else 'No' }}</td>
+
+                            <td class="p-4">{{ "%.0f"|format(p.dist_center_m) }}</td>
+                            <td class="p-4">{{ "%.0f"|format(p.dist_metro_m) }}</td>
                         </tr>
                         {% else %}
                         <tr>
@@ -189,14 +143,56 @@
                             </td>
                         </tr>
                         {% endfor %}
-
                     </tbody>
                 </table>
             </div>
-
         </section>
-
     </div>
 </main>
+
+
+<!-- MAP SCRIPT -->
+<script>
+    const map = L.map('map').setView([40.0, -3.7], 6);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const markers = L.featureGroup().addTo(map);
+
+    const properties = {{ results | tojson }};
+
+    properties.forEach(p => {
+        if (!p.latitude || !p.longitude) return;
+
+        const color = p.arbitrage_score > 0 ? "#0284C7" : "#38BDF8";
+
+        const marker = L.circleMarker([p.latitude, p.longitude], {
+            radius: 7,
+            color,
+            fillColor: color,
+            fillOpacity: 0.9,
+            weight: 2
+        });
+
+        const popup = `
+            <strong>${p.city}</strong><br>
+            Price: €${p.price.toLocaleString()}<br>
+            Predicted: €${p.predicted_price.toLocaleString()}<br>
+            Arbitrage: <b style="color:${color}">€${p.arbitrage_score.toLocaleString()}</b><br>
+            Rooms: ${p.rooms}, Baths: ${p.bathrooms}<br>
+            Metro: ${p.dist_metro_m} m
+        `;
+
+        marker.bindPopup(popup);
+        marker.addTo(markers);
+    });
+
+    if (markers.getLayers().length > 0) {
+        map.fitBounds(markers.getBounds(), { padding: [20, 20] });
+    }
+</script>
 
 {% endblock %}
