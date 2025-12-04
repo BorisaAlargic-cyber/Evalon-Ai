@@ -17,12 +17,17 @@ app.secret_key = "supersecretkey"
 
 
 # ------------------------------
-# Upload to S3
+# Upload to S3 + Auto-run inference
 # ------------------------------
 @app.route("/upload", methods=["GET", "POST"])
 def upload():
     if request.method == "POST":
         f = request.files.get("file")
+
+        if not f:
+            flash("No file selected!", "danger")
+            return redirect(url_for("upload"))
+
         filename = secure_filename(f.filename)
         local_path = f"/tmp/{filename}"
         f.save(local_path)
@@ -30,7 +35,17 @@ def upload():
         # Upload raw file to S3
         s3.upload_file(local_path, S3_BUCKET, RAW_PREFIX + filename)
 
-        flash("Uploaded to S3! Now run inference.", "success")
+        # ----------------------
+        # AUTO-RUN INFERENCE
+        # ----------------------
+        import subprocess
+        subprocess.Popen(
+            ["python3", "pipeline_infer.py", filename],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+
+        flash("File uploaded! AI analysis started. Refresh dashboard in ~10 seconds.", "success")
         return redirect(url_for("dashboard"))
 
     return render_template("upload.html")
@@ -80,7 +95,7 @@ def dashboard():
     if selected_city != "All":
         filtered = filtered[filtered["city"] == selected_city]
 
-    # Rooms + Bathrooms filter (CSV fields!)
+    # Rooms + Bathrooms filter
     filtered = filtered[
         (filtered["roomnumber"] >= selected_rooms) &
         (filtered["bathnumber"] >= selected_baths)
@@ -92,7 +107,7 @@ def dashboard():
             filtered["hasparkingspace"] == (selected_parking == "Yes")
         ]
 
-    # 🟢 Rename backend → frontend fields
+    # Rename backend → frontend fields
     filtered = filtered.rename(columns={
         "roomnumber": "rooms",
         "bathnumber": "bathrooms",
