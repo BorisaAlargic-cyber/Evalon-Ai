@@ -122,7 +122,7 @@ def train_and_save_model(df, city):
 
 # ----------- MAIN -----------
 def main():
-    df = pd.read_csv("test_part.csv")
+    df = pd.read_csv("train_part.csv")
     df = clean_and_engineer(df)
 
     for city in sorted(df["city"].unique()):
