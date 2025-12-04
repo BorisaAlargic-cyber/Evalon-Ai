@@ -16,7 +16,6 @@ s3 = boto3.client("s3")
 app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
-
 # =====================================================
 # UPLOAD + AUTO RUN INFERENCE
 # =====================================================
@@ -46,7 +45,6 @@ def upload():
 
     return render_template("upload.html")
 
-
 # =====================================================
 # DOWNLOAD OUTPUT CSV
 # =====================================================
@@ -60,27 +58,29 @@ def download():
     except Exception as e:
         return f"Error downloading file: {e}", 500
 
-    return send_file(local_path,
-                     as_attachment=True,
-                     download_name="EvalonAI_Results.csv")
-
+    return send_file(
+        local_path,
+        as_attachment=True,
+        download_name="EvalonAI_Results.csv"
+    )
 
 # =====================================================
 # DASHBOARD
 # =====================================================
 @app.route("/", methods=["GET"])
 def dashboard():
-
     local_out = "/tmp/out.csv"
 
     # Download inference results from S3
     try:
         s3.download_file(S3_BUCKET, RESULT_FILE, local_out)
     except:
-        return render_template("index.html",
-                               results=[],
-                               cities=[],
-                               total_results=0)
+        return render_template(
+            "index.html",
+            results=[],
+            cities=[],
+            total_results=0
+        )
 
     df = pd.read_csv(local_out)
 
@@ -140,15 +140,17 @@ def dashboard():
 
     results = filtered.to_dict(orient="records")
 
-    return render_template("index.html",
-                           cities=sorted(df["city"].unique()),
-                           selected_city=selected_city,
-                           selected_rooms=selected_rooms,
-                           selected_baths=selected_baths,
-                           selected_parking=selected_parking,
-                           sort_option=sort_option,
-                           results=results,
-                           total_results=len(df))
+    return render_template(
+        "index.html",
+        cities=sorted(df["city"].unique()),
+        selected_city=selected_city,
+        selected_rooms=selected_rooms,
+        selected_baths=selected_baths,
+        selected_parking=selected_parking,
+        sort_option=sort_option,
+        results=results,
+        total_results=len(df)
+    )
 
 # ------------------------------
 # Performance Dashboard
@@ -166,12 +168,13 @@ def performance():
     df = pd.read_csv(local_out)
 
     # --- Compute Metrics ---
-    from sklearn.metrics import mean_absolute_error, r2_score
+    from sklearn.metrics import mean_absolute_error, median_absolute_error, r2_score
 
     y_true = df["price"]
     y_pred = df["predicted_price"]
 
     mae = mean_absolute_error(y_true, y_pred)
+    medae = median_absolute_error(y_true, y_pred)
     mape = (abs((y_true - y_pred) / y_true).mean()) * 100
     r2 = r2_score(y_true, y_pred)
 
@@ -179,25 +182,30 @@ def performance():
     city_stats = []
     for city in df["city"].unique():
         sub = df[df["city"] == city]
-        c_mae = mean_absolute_error(sub["price"], sub["predicted_price"])
-        c_mape = (abs((sub["price"] - sub["predicted_price"]) / sub["price"]).mean()) * 100
-        c_r2 = r2_score(sub["price"], sub["predicted_price"])
+        c_y_true = sub["price"]
+        c_y_pred = sub["predicted_price"]
+
+        c_mae = mean_absolute_error(c_y_true, c_y_pred)
+        c_medae = median_absolute_error(c_y_true, c_y_pred)
+        c_mape = (abs((c_y_true - c_y_pred) / c_y_true).mean()) * 100
+        c_r2 = r2_score(c_y_true, c_y_pred)
+
         city_stats.append({
             "city": city,
             "mae": round(c_mae, 2),
+            "medae": round(c_medae, 2),
             "mape": round(c_mape, 2),
-            "r2": round(c_r2, 3)
+            "r2": round(c_r2, 3),
         })
 
     return render_template(
         "performance.html",
         mae=round(mae, 2),
+        medae=round(medae, 2),
         mape=round(mape, 2),
         r2=round(r2, 3),
-        city_stats=city_stats
+        city_stats=city_stats,
     )
-
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
