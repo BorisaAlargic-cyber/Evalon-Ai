@@ -39,12 +39,10 @@ def clean_and_engineer(df):
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # distance calculation
     print("    - Calculating distance to city center...")
     df["distance_to_center"] = df.apply(calculate_distance, axis=1)
     df["distance_to_center"].fillna(df["distance_to_center"].median(), inplace=True)
 
-    # extra features
     print("    - Creating ratio features...")
     df["price_m2"] = df["price"] / df["constructedarea"]
     df["rooms_per_m2"] = df["roomnumber"] / df["constructedarea"]
@@ -88,7 +86,7 @@ def run_inference(upload_filename):
     df = pd.read_csv(local_raw)
     print(f"    - Loaded {len(df):,} rows.")
 
-    # --- NEW: SAMPLE ONLY 50K ROWS TO REDUCE MEMORY ---
+    # SAMPLE ROWS TO AVOID MEMORY ISSUES
     MAX_ROWS = 5000
     if len(df) > MAX_ROWS:
         print(f"[!] Dataset has {len(df):,} rows — sampling down to {MAX_ROWS:,} rows...")
@@ -97,7 +95,6 @@ def run_inference(upload_filename):
         print(f"[+] Dataset has {len(df):,} rows — no sampling needed.")
 
     print(f"[+] Using {len(df):,} rows for inference.\n")
-    # -----------------------------------------------------
 
     df = clean_and_engineer(df)
 
@@ -121,6 +118,9 @@ def run_inference(upload_filename):
         df_city["predicted_price"] = preds
         df_city["arbitrage_score"] = preds - df_city["price"]
 
+        # ⬅️ NEW: TOP 50 arbitrage opportunities per city
+        df_city = df_city.sort_values("arbitrage_score", ascending=False).head(50)
+
         result_list.append(df_city)
 
         print(f"[✓] Finished {city} in {time.time() - city_start:.2f} sec\n")
@@ -141,7 +141,7 @@ def run_inference(upload_filename):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        print("Usage: python3 pipline_infer.py <csv_filename>")
+        print("Usage: python3 pipeline_infer.py <csv_filename>")
         exit(1)
 
     filename = sys.argv[1]
