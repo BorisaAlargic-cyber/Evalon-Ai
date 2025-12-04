@@ -26,30 +26,29 @@ def calculate_distance(row):
     if city not in CITY_CENTERS or pd.isna(lat) or pd.isna(lon):
         return np.nan
     c_lat, c_lon = CITY_CENTERS[city]
-    return ((lat - c_lat)**2 + (lon - c_lon)**2)**0.5
+    return ((lat - c_lat) ** 2 + (lon - c_lon) ** 2) ** 0.5
 
 def clean_and_engineer(df):
     df = df.copy()
     df.columns = [c.lower() for c in df.columns]
 
-    num_cols = ["price","constructedarea","bathnumber","roomnumber",
-                "latitude","longitude","builtyear"]
+    num_cols = [
+        "price", "constructedarea", "bathnumber", "roomnumber",
+        "latitude", "longitude", "builtyear"
+    ]
     for col in num_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Distance to center
     df["distance_to_center"] = df.apply(calculate_distance, axis=1)
     df["distance_to_center"].fillna(df["distance_to_center"].median(), inplace=True)
 
-    # Distance to metro (convert km → meters if necessary)
     if "distance_to_metro" in df.columns:
-        if df["distance_to_metro"].max() < 100:  # looks like km
+        if df["distance_to_metro"].max() < 100:
             df["distance_to_metro"] = df["distance_to_metro"] * 1000
     else:
         df["distance_to_metro"] = np.nan
 
-    # Feature engineering
     df["price_m2"] = df["price"] / df["constructedarea"]
     df["rooms_per_m2"] = df["roomnumber"] / df["constructedarea"]
     df["bathrooms_per_room"] = df["bathnumber"] / df["roomnumber"].replace(0, np.nan)
@@ -58,11 +57,13 @@ def clean_and_engineer(df):
     return df
 
 def get_features(df):
-    return [c for c in [
-        "constructedarea","bathnumber","roomnumber","distance_to_center",
-        "price_m2","rooms_per_m2","bathrooms_per_room","builtyear",
-        "propertytype","neighborhood","district"
-    ] if c in df.columns]
+    return [
+        c for c in [
+            "constructedarea", "bathnumber", "roomnumber", "distance_to_center",
+            "price_m2", "rooms_per_m2", "bathrooms_per_room", "builtyear",
+            "propertytype", "neighborhood", "district"
+        ] if c in df.columns
+    ]
 
 def load_model(city):
     local_path = f"/tmp/model_{city}.pkl"
@@ -78,7 +79,6 @@ def run_inference(upload_filename):
 
     df = pd.read_csv(local_raw)
 
-    # Reduce memory
     MAX_ROWS = 5000
     if len(df) > MAX_ROWS:
         df = df.sample(n=MAX_ROWS, random_state=42).reset_index(drop=True)
@@ -87,6 +87,11 @@ def run_inference(upload_filename):
 
     result_list = []
     cities = df["city"].unique()
+
+    # to aggregate global metrics
+    all_y_true = []
+    all_y_pred = []
+    city_stats = []
 
     # -----------------------------
     #    RUN MODEL FOR EACH CITY
@@ -102,13 +107,10 @@ def run_inference(upload_filename):
         df_city["arbitrage_score"] = preds - df_city["price"]
         df_city["undervaluation_pct"] = (df_city["arbitrage_score"] / df_city["price"]) * 100
 
-        # Save results
         result_list.append(df_city)
 
-        # -----------------------------
-        #      INFERENCE PERFORMANCE
-        # -----------------------------
-        y_true = df_city["price"]
+        # ---------- INFERENCE PERFORMANCE (per city) ----------
+        y_true = df_city["price"].values
         y_pred = preds
 
         r2 = r2_score(y_true, y_pred)
@@ -125,6 +127,17 @@ def run_inference(upload_filename):
         print(f"MAPE:              {mape:.2f}%")
         print("==============================\n")
 
+        # collect for global metrics and dashboard
+        all_y_true.append(y_true)
+        all_y_pred.append(y_pred)
+        city_stats.append({
+            "city": city,
+            "mae": mae,
+            "medae": medae,
+            "mape": mape,
+            "r2": r2,
+        })
+
     # CONCAT ALL RESULTS
     final = pd.concat(result_list)
 
@@ -140,6 +153,31 @@ def run_inference(upload_filename):
 
     print(f"[✓] Uploaded results to s3://{S3_BUCKET}/{RESULT_FILE}")
     print(f"[🏁] Total inference time: {time.time() - start_time:.2f} sec")
+
+    # ---------- GLOBAL METRICS ----------
+    all_y_true = np.concatenate(all_y_true)
+    all_y_pred = np.concatenate(all_y_pred)
+
+    global_r2 = r2_score(all_y_true, all_y_pred)
+    global_mae = mean_absolute_error(all_y_true, all_y_pred)
+    global_medae = median_absolute_error(all_y_true, all_y_pred)
+    global_mape = np.mean(np.abs((all_y_true - all_y_pred) / all_y_true)) * 100
+
+    print("\n====== GLOBAL METRICS ACROSS ALL CITIES ======")
+    print(f"R²:            {global_r2:.4f}")
+    print(f"MAE:           €{global_mae:,.2f}")
+    print(f"Median AbsErr: €{global_medae:,.2f}")
+    print(f"MAPE:          {global_mape:.2f}%")
+    print("================================================\n")
+
+    # return values for Flask or other caller
+    return {
+        "mae": global_mae,
+        "medae": global_medae,
+        "mape": global_mape,
+        "r2": global_r2,
+        "city_stats": city_stats,
+    }
 
 if __name__ == "__main__":
     import sys

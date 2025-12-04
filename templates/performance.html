@@ -7,16 +7,16 @@
         Model Performance Dashboard
     </h1>
 
-    <!-- High‑level explanation -->
+    <!-- High-level explanation -->
     <p class="mb-6 text-gray-300 max-w-3xl">
         This page summarizes how well the pricing model predicts apartment prices
-        in Barcelona, Madrid and Valencia. The metrics below are computed on
-        unseen listings, so they show how the model behaves in realistic
-        conditions rather than on the training data.
+        in Barcelona, Madrid and Valencia using unseen listings. The metrics
+        describe how far predictions are from real market prices, both in euros
+        and in percentage terms. [web:66][web:67]
     </p>
 
     <!-- Global Metrics -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
 
         <div class="p-6 bg-[#1E293B] rounded-xl shadow-xl text-center">
             <h3 class="text-xl font-semibold mb-2 text-cyan-300">Average Error (€)</h3>
@@ -24,8 +24,17 @@
                 €{{ "%.0f"|format(mae) }}
             </p>
             <p class="text-gray-400 mt-2 text-sm">
-                On average, predictions are this many euros away from the
-                actual listing price.
+                Mean absolute difference between predicted and actual prices.
+            </p>
+        </div>
+
+        <div class="p-6 bg-[#1E293B] rounded-xl shadow-xl text-center">
+            <h3 class="text-xl font-semibold mb-2 text-cyan-300">Median Error (€)</h3>
+            <p class="text-3xl font-bold">
+                €{{ "%.0f"|format(medae) }}
+            </p>
+            <p class="text-gray-400 mt-2 text-sm">
+                Half of all predictions are closer than this amount to the true price.
             </p>
         </div>
 
@@ -35,8 +44,8 @@
                 {{ "%.2f"|format(mape) }}%
             </p>
             <p class="text-gray-400 mt-2 text-sm">
-                Typical prediction error as a percentage of the true price.
-                Values around 1–6% indicate very accurate pricing.
+                Typical error as a percentage of the real price; values in the
+                low single digits indicate very accurate predictions. [web:68][web:73]
             </p>
         </div>
 
@@ -46,8 +55,8 @@
                 {{ "%.3f"|format(r2) }}
             </p>
             <p class="text-gray-400 mt-2 text-sm">
-                Share of price variability captured by the model
-                (1.0 would be perfect). Values above 0.95 are considered very strong
+                Fraction of price variability captured by the model
+                (1.0 would be perfect). Values above 0.95 are considered strong
                 for housing price prediction. [web:66][web:72]
             </p>
         </div>
@@ -55,13 +64,14 @@
 
     <!-- City Breakdown -->
     <h2 class="text-2xl font-bold mb-4 border-l-4 pl-4 border-cyan-400">
-        City‑level accuracy
+        City-level accuracy
     </h2>
 
     <p class="mb-4 text-gray-300 max-w-3xl">
-        The table shows how performance changes by city. In all three markets,
-        the model keeps the average percentage error in the single digits,
-        while explaining most of the price variation. [web:67][web:72]
+        Performance is also broken down by city to show where the model is most
+        and least confident. In all three markets, the model keeps average
+        percentage error in the single digits while explaining most of the price
+        variation. [web:67][web:72]
     </p>
 
     <div class="overflow-x-auto rounded-xl border border-[#3A4A6E] shadow-xl mb-12">
@@ -70,6 +80,7 @@
                 <tr class="table-header-dark text-xs uppercase tracking-wider">
                     <th class="p-4">City</th>
                     <th class="p-4">Avg error (€)</th>
+                    <th class="p-4">Median error (€)</th>
                     <th class="p-4">Avg % error</th>
                     <th class="p-4">R² (variance explained)</th>
                 </tr>
@@ -82,6 +93,9 @@
                     </td>
                     <td class="p-4">
                         €{{ "%.0f"|format(c.mae) }}
+                    </td>
+                    <td class="p-4">
+                        €{{ "%.0f"|format(c.medae) }}
                     </td>
                     <td class="p-4">
                         {{ "%.2f"|format(c.mape) }}%
@@ -101,18 +115,24 @@
             How to read these numbers
         </h2>
         <p>
-            • <span class="font-semibold">Low MAE</span> (a few thousand euros) means the model
-            is usually very close to real market prices. [web:66]
+            • <span class="font-semibold">Average error (MAE)</span> shows the
+            typical money error in euros: lower is better. [web:66][web:67]
         </p>
         <p>
-            • <span class="font-semibold">Low MAPE</span> (around 1–6%) means predictions are
-            typically within a few percent of the true price, even across
-            different cities and property sizes. [web:68][web:73]
+            • <span class="font-semibold">Median error</span> is robust to a few
+            extreme listings and describes the “typical” case for most
+            properties.
         </p>
         <p>
-            • <span class="font-semibold">High R²</span> (above 0.95) shows that the model
-            captures nearly all the variation in prices, which is competitive
-            with results reported in house‑price prediction research. [web:72][web:75]
+            • <span class="font-semibold">Average % error (MAPE)</span> normalizes
+            errors by price, so a €5k error on a €500k flat (1%) is treated
+            differently from the same error on a €50k studio (10%). [web:68][web:73]
+        </p>
+        <p>
+            • <span class="font-semibold">R²</span> measures how much of the
+            variance in prices the model explains. High R² together with low
+            MAE/MAPE indicates both good fit and practically useful accuracy
+            for price estimation. [web:66][web:72]
         </p>
     </div>
 
