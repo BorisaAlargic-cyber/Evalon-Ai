@@ -17,7 +17,7 @@ app.secret_key = "supersecretkey"
 
 
 # ------------------------------
-# Upload to S3 (original version)
+# Upload to S3
 # ------------------------------
 @app.route("/upload", methods=["GET", "POST"])
 def upload():
@@ -27,7 +27,7 @@ def upload():
         local_path = f"/tmp/{filename}"
         f.save(local_path)
 
-        # Upload raw input
+        # Upload raw file to S3
         s3.upload_file(local_path, S3_BUCKET, RAW_PREFIX + filename)
 
         flash("Uploaded to S3! Now run inference.", "success")
@@ -37,73 +37,79 @@ def upload():
 
 
 # ------------------------------
-# Dashboard (original version)
+# Dashboard (MAIN UI)
 # ------------------------------
 @app.route("/", methods=["GET"])
 def dashboard():
 
-        local_out = "/tmp/out.csv"
+    local_out = "/tmp/out.csv"
 
-        # Try downloading results file
-        try:
-            s3.download_file(S3_BUCKET, RESULT_FILE, local_out)
-        except:
-            return render_template(
-                "index.html",
-                results=[],
-                cities=[],
-                neighbourhoods=[],
-                total_results=0
-            )
+    # Try downloading the result CSV from S3
+    try:
+        s3.download_file(S3_BUCKET, RESULT_FILE, local_out)
+    except:
+        return render_template("index.html",
+                               results=[],
+                               cities=[],
+                               neighbourhoods=[],
+                               total_results=0)
 
-        df = pd.read_csv(local_out)
+    df = pd.read_csv(local_out)
 
-        # Rename for UI
-        rename_map = {
-            "distance_to_center": "dist_center_km",
-        }
-        df = df.rename(columns=rename_map)
+    # Visual rename for UI
+    df = df.rename(columns={
+        "distance_to_center": "dist_center_km",
+        "distance_to_metro": "dist_metro_m",
+        "assetId": "assetid"
+    })
 
-        # Compute arbitrage for safety
+    # Ensure arbitrage column exists
+    if "arbitrage_score" not in df.columns:
         df["arbitrage_score"] = df["predicted_price"] - df["price"]
 
-        # Read filters
-        selected_city = request.args.get("city", "All")
-        selected_rooms = int(request.args.get("rooms", 1))
-        selected_baths = int(request.args.get("bathrooms", 1))
-        selected_parking = request.args.get("parking", "All")
+    # Get filters
+    selected_city = request.args.get("city", "All")
+    selected_rooms = int(request.args.get("rooms", 1))
+    selected_baths = int(request.args.get("bathrooms", 1))
+    selected_parking = request.args.get("parking", "All")
 
-        filtered = df.copy()
+    # Start filtering
+    filtered = df.copy()
 
-        # City filter
-        if selected_city != "All":
-            filtered = filtered[filtered["city"] == selected_city]
+    # City filter
+    if selected_city != "All":
+        filtered = filtered[filtered["city"] == selected_city]
 
-        # Rooms, baths
+    # Rooms + Bathrooms filter (CSV fields!)
+    filtered = filtered[
+        (filtered["roomnumber"] >= selected_rooms) &
+        (filtered["bathnumber"] >= selected_baths)
+    ]
+
+    # Parking filter
+    if selected_parking != "All":
         filtered = filtered[
-            (filtered["roomnumber"] >= selected_rooms) &
-            (filtered["bathnumber"] >= selected_baths)
+            filtered["hasparkingspace"] == (selected_parking == "Yes")
         ]
 
-        # Parking
-        if selected_parking != "All":
-            filtered = filtered[
-                filtered["hasparkingspace"] == (selected_parking == "Yes")
-            ]
+    # 🟢 Rename backend → frontend fields
+    filtered = filtered.rename(columns={
+        "roomnumber": "rooms",
+        "bathnumber": "bathrooms",
+        "hasparkingspace": "has_parking",
+    })
 
-        results = filtered.to_dict(orient="records")
+    results = filtered.to_dict(orient="records")
 
-        return render_template(
-            "index.html",
-            cities=sorted(df["city"].unique()),
-            neighbourhoods=[],
-            selected_city=selected_city,
-            selected_rooms=selected_rooms,
-            selected_baths=selected_baths,
-            selected_parking=selected_parking,
-            results=results,
-            total_results=len(df)
-        )
+    return render_template("index.html",
+                           cities=sorted(df["city"].unique()),
+                           neighbourhoods=[],
+                           selected_city=selected_city,
+                           selected_rooms=selected_rooms,
+                           selected_baths=selected_baths,
+                           selected_parking=selected_parking,
+                           results=results,
+                           total_results=len(df))
 
 
 if __name__ == "__main__":
