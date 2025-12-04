@@ -33,7 +33,9 @@
                 <select name="city" class="w-full p-2.5 bg-gray-700 border border-gray-600 rounded text-white">
                     <option value="All">All Cities</option>
                     {% for city in cities %}
-                    <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>{{ city }}</option>
+                    <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>
+                        {{ city }}
+                    </option>
                     {% endfor %}
                 </select>
             </div>
@@ -74,6 +76,66 @@
     <!-- MAIN PANEL -->
     <div class="w-full md:w-3/4 p-8 overflow-y-auto bg-[#1A1A2E]">
 
+        <!-- MAP -->
+        <section class="mb-10">
+            <h2 class="text-2xl font-bold mb-4 border-l-4 border-cyan-400 pl-4">Property Map</h2>
+            <div id="map" style="height: 420px; border-radius: 12px;"></div>
+        </section>
+
+        <!-- Leaflet CSS + JS -->
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+        <script>
+            // Init map
+            const map = L.map('map', {
+                zoomControl: true,
+                scrollWheelZoom: true
+            }).setView([40.0, -3.7], 6);
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 18,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            const markerGroup = L.featureGroup().addTo(map);
+            const results = {{ results | tojson }};
+
+            results.forEach(item => {
+                if (!item.latitude || !item.longitude) return;
+
+                const color = item.arbitrage_score > 0 ? "#00C2FF" : "#FF6B6B";
+
+                const marker = L.circleMarker([item.latitude, item.longitude], {
+                    radius: 7,
+                    color,
+                    fillColor: color,
+                    fillOpacity: 0.85,
+                    weight: 2
+                });
+
+                marker.bindPopup(`
+                    <div style="color:#1e293b;">
+                        <strong style="color:${color}; font-size:14px;">${item.city}</strong><br>
+                        <b>Price:</b> €${item.price.toLocaleString()}<br>
+                        <b>Predicted:</b> €${item.predicted_price.toLocaleString()}<br>
+                        <b>Arbitrage:</b> <span style="color:${color}; font-weight:bold;">
+                            €${item.arbitrage_score.toLocaleString()}
+                        </span><br>
+                        <b>Rooms:</b> ${item.rooms} | <b>Baths:</b> ${item.bathrooms}<br>
+                        <b>Center:</b> ${item.dist_center_km} m |
+                        <b>Metro:</b> ${item.dist_metro_m ?? 0} m
+                    </div>
+                `);
+
+                marker.addTo(markerGroup);
+            });
+
+            if (markerGroup.getLayers().length > 0) {
+                map.fitBounds(markerGroup.getBounds(), { padding: [20, 20] });
+            }
+        </script>
+
         <!-- RESULTS TABLE -->
         <section>
             <div class="flex justify-between items-end mb-4">
@@ -97,10 +159,11 @@
                             <th class="p-4 text-center">Rooms</th>
                             <th class="p-4 text-center">Baths</th>
                             <th class="p-4 text-center">Parking</th>
-                            <th class="p-4">Dist. Center (km)</th>
+                            <th class="p-4">Dist. Center (m)</th>
                             <th class="p-4">Dist. Metro (m)</th>
                         </tr>
                     </thead>
+
                     <tbody class="divide-y divide-gray-700 bg-[#202940]">
 
                         {% for p in results %}
@@ -115,10 +178,8 @@
                             <td class="p-4 text-center">{{ p.rooms }}</td>
                             <td class="p-4 text-center">{{ p.bathrooms }}</td>
                             <td class="p-4 text-center">{{ "Yes" if p.has_parking else "No" }}</td>
-                            <td class="p-4">{{ "%.1f"|format(p.dist_center_km) }}</td>
-
-                            <!-- SAFE because CSV has no dist_metro_m -->
-                            <td class="p-4">{{ "%.0f"|format(p.get('dist_metro_m', 0)) }}</td>
+                            <td class="p-4">{{ "%.0f"|format(p.dist_center_km) }} m</td>
+                            <td class="p-4">{{ "%.0f"|format(p.get('dist_metro_m', 0)) }} m</td>
                         </tr>
                         {% else %}
                         <tr>

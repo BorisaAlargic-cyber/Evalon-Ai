@@ -4,6 +4,7 @@ import numpy as np
 import boto3
 import pickle
 import time
+from math import radians, sin, cos, sqrt, atan2
 
 S3_BUCKET = "evalon-ai-team-1"
 RAW_PREFIX = "raw/"
@@ -19,30 +20,58 @@ CITY_CENTERS = {
     "Valencia":  (39.4702, -0.3768),
 }
 
+# --------------------------------------------
+# REAL DISTANCE FORMULA → returns METERS
+# --------------------------------------------
+def haversine(lat1, lon1, lat2, lon2):
+    R = 6371000  # meters
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    a = sin(dlat/2)**2 + cos(lat1)*cos(lat2)*sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+    return R * c
+
+# --------------------------------------------
+# Distance to each city center in meters
+# --------------------------------------------
 def calculate_distance(row):
     city = row.get("city")
     lat = row.get("latitude")
     lon = row.get("longitude")
+
     if city not in CITY_CENTERS or pd.isna(lat) or pd.isna(lon):
         return np.nan
-    c_lat, c_lon = CITY_CENTERS[city]
-    return ((lat - c_lat)**2 + (lon - c_lon)**2)**0.5
 
+    c_lat, c_lon = CITY_CENTERS[city]
+    return haversine(lat, lon, c_lat, c_lon)  # METERS
+
+
+# --------------------------------------------
+# FEATURE ENGINEERING
+# --------------------------------------------
 def clean_and_engineer(df):
     print("[*] Cleaning & feature engineering...")
     df = df.copy()
     df.columns = [c.lower() for c in df.columns]
 
-    num_cols = ["price","constructedarea","bathnumber","roomnumber",
-                "latitude","longitude","builtyear"]
+    num_cols = ["price", "constructedarea", "bathnumber", "roomnumber",
+                "latitude", "longitude", "builtyear"]
     for col in num_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    print("    - Calculating distance to city center...")
+    # distance calculation to center (meters)
+    print("    - Calculating distance to city center (meters)...")
     df["distance_to_center"] = df.apply(calculate_distance, axis=1)
     df["distance_to_center"].fillna(df["distance_to_center"].median(), inplace=True)
 
+    # distance_to_metro already in meters → DO NOT TOUCH
+    if "distance_to_metro" in df.columns:
+        df["distance_to_metro"] = pd.to_numeric(df["distance_to_metro"], errors="coerce")
+
+    # extra features
     print("    - Creating ratio features...")
     df["price_m2"] = df["price"] / df["constructedarea"]
     df["rooms_per_m2"] = df["roomnumber"] / df["constructedarea"]
@@ -54,12 +83,14 @@ def clean_and_engineer(df):
     print("[+] Feature engineering complete.")
     return df
 
+
 def get_features(df):
     return [c for c in [
         "constructedarea","bathnumber","roomnumber","distance_to_center",
         "price_m2","rooms_per_m2","bathrooms_per_room","builtyear",
         "propertytype","neighborhood","district"
     ] if c in df.columns]
+
 
 def load_model(city):
     local_path = f"/tmp/model_{city}.pkl"
@@ -70,6 +101,7 @@ def load_model(city):
     print(f"    - Model downloaded: {local_path}")
 
     return pickle.load(open(local_path, "rb"))
+
 
 def run_inference(upload_filename):
     start_time = time.time()
@@ -86,21 +118,16 @@ def run_inference(upload_filename):
     df = pd.read_csv(local_raw)
     print(f"    - Loaded {len(df):,} rows.")
 
-    # SAMPLE ROWS TO AVOID MEMORY ISSUES
     MAX_ROWS = 5000
     if len(df) > MAX_ROWS:
         print(f"[!] Dataset has {len(df):,} rows — sampling down to {MAX_ROWS:,} rows...")
         df = df.sample(n=MAX_ROWS, random_state=42).reset_index(drop=True)
-    else:
-        print(f"[+] Dataset has {len(df):,} rows — no sampling needed.")
-
-    print(f"[+] Using {len(df):,} rows for inference.\n")
 
     df = clean_and_engineer(df)
 
     result_list = []
     unique_cities = df["city"].unique()
-    print(f"[+] Cities found in data: {unique_cities}\n")
+    print(f"[+] Cities found: {unique_cities}\n")
 
     for city in unique_cities:
         print(f"[===] Processing city: {city} [===]")
@@ -108,18 +135,13 @@ def run_inference(upload_filename):
 
         model = load_model(city)
         df_city = df[df["city"] == city].copy()
-        print(f"    - Rows for {city}: {len(df_city):,}")
 
         X = df_city[get_features(df_city)]
 
-        print("    - Running model.predict()...")
         preds = np.expm1(model.predict(X))
 
         df_city["predicted_price"] = preds
         df_city["arbitrage_score"] = preds - df_city["price"]
-
-        # ⬅️ NEW: TOP 50 arbitrage opportunities per city
-        df_city = df_city.sort_values("arbitrage_score", ascending=False).head(50)
 
         result_list.append(df_city)
 
@@ -128,10 +150,8 @@ def run_inference(upload_filename):
     print("[*] Concatenating results...")
     final = pd.concat(result_list)
 
-    print("[*] Saving results to /tmp/results.csv...")
+    # SAVE
     final.to_csv("/tmp/results.csv", index=False)
-
-    print("[*] Uploading results to S3...")
     s3.upload_file("/tmp/results.csv", S3_BUCKET, RESULT_FILE)
 
     print(f"[✓] Uploaded results to s3://{S3_BUCKET}/{RESULT_FILE}")
