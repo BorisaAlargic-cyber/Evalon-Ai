@@ -1,7 +1,7 @@
 # app.py
 import os
 import pandas as pd
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file
 from werkzeug.utils import secure_filename
 import boto3
 import subprocess
@@ -47,6 +47,23 @@ def upload():
     return render_template("upload.html")
 
 
+# =====================================================
+# DOWNLOAD OUTPUT CSV
+# =====================================================
+@app.route("/download")
+def download():
+    """Download the result CSV file stored in S3."""
+    local_path = "/tmp/download_results.csv"
+
+    try:
+        s3.download_file(S3_BUCKET, RESULT_FILE, local_path)
+    except Exception as e:
+        return f"Error downloading file: {e}", 500
+
+    return send_file(local_path,
+                     as_attachment=True,
+                     download_name="EvalonAI_Results.csv")
+
 
 # =====================================================
 # DASHBOARD
@@ -74,22 +91,20 @@ def dashboard():
         "assetId": "assetid"
     })
 
-    # Ensure arbitrage exists
-    if "arbitrage_score" not in df.columns:
-        df["arbitrage_score"] = df["predicted_price"] - df["price"]
+    # Arbitrage score
+    df["arbitrage_score"] = df["predicted_price"] - df["price"]
 
-    # Add undervaluation % (NEW)
+    # Undervaluation %
     df["undervaluation_pct"] = (
         (df["predicted_price"] - df["price"]) / df["price"] * 100
     ).fillna(0)
 
-
-    # ---------------- FILTERS ----------------
+    # --------- FILTERS ----------
     selected_city = request.args.get("city", "All")
     selected_rooms = int(request.args.get("rooms", 1))
     selected_baths = int(request.args.get("bathrooms", 1))
     selected_parking = request.args.get("parking", "All")
-
+    sort_option = request.args.get("sort", "none")
 
     filtered = df.copy()
 
@@ -97,7 +112,7 @@ def dashboard():
     if selected_city != "All":
         filtered = filtered[filtered["city"] == selected_city]
 
-    # Rooms + bathrooms
+    # Rooms / Baths
     filtered = filtered[
         (filtered["roomnumber"] >= selected_rooms) &
         (filtered["bathnumber"] >= selected_baths)
@@ -109,6 +124,13 @@ def dashboard():
             filtered["hasparkingspace"] == (selected_parking == "Yes")
         ]
 
+    # --------- SORTING ---------
+    if sort_option == "arbitrage_desc":
+        filtered = filtered.sort_values(by="arbitrage_score", ascending=False)
+
+    if sort_option == "undervaluation_desc":
+        filtered = filtered.sort_values(by="undervaluation_pct", ascending=False)
+
     # Backend → UI rename
     filtered = filtered.rename(columns={
         "roomnumber": "rooms",
@@ -116,9 +138,7 @@ def dashboard():
         "hasparkingspace": "has_parking",
     })
 
-    # Convert to dict for Jinja
     results = filtered.to_dict(orient="records")
-
 
     return render_template("index.html",
                            cities=sorted(df["city"].unique()),
@@ -126,9 +146,9 @@ def dashboard():
                            selected_rooms=selected_rooms,
                            selected_baths=selected_baths,
                            selected_parking=selected_parking,
+                           sort_option=sort_option,
                            results=results,
                            total_results=len(df))
-
 
 
 if __name__ == "__main__":
