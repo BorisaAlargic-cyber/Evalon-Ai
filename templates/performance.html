@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="p-10 text-white">
+
+    <h1 class="text-3xl font-bold mb-8 border-l-4 pl-4 border-cyan-400">
+        Model Performance Dashboard
+    </h1>
+
+    <!-- Global Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+
+        <div class="p-6 bg-[#1E293B] rounded-xl shadow-xl text-center">
+            <h3 class="text-xl font-semibold mb-2 text-cyan-300">MAE</h3>
+            <p class="text-3xl font-bold">€{{ mae }}</p>
+            <p class="text-gray-400 mt-2 text-sm">Average absolute error</p>
+        </div>
+
+        <div class="p-6 bg-[#1E293B] rounded-xl shadow-xl text-center">
+            <h3 class="text-xl font-semibold mb-2 text-cyan-300">MAPE</h3>
+            <p class="text-3xl font-bold">{{ "%.2f"|format(mape) }}%</p>
+            <p class="text-gray-400 mt-2 text-sm">Avg percent error</p>
+        </div>
+
+        <div class="p-6 bg-[#1E293B] rounded-xl shadow-xl text-center">
+            <h3 class="text-xl font-semibold mb-2 text-cyan-300">R² Score</h3>
+            <p class="text-3xl font-bold">{{ r2 }}</p>
+            <p class="text-gray-400 mt-2 text-sm">Variance explained by the model</p>
+        </div>
+    </div>
+
+    <!-- City Breakdown -->
+    <h2 class="text-2xl font-bold mb-4 border-l-4 pl-4 border-cyan-400">City-Level Accuracy</h2>
+
+    <div class="overflow-x-auto rounded-xl border border-[#3A4A6E] shadow-xl mb-12">
+        <table class="min-w-full text-left text-gray-300">
+            <thead>
+                <tr class="table-header-dark text-xs uppercase tracking-wider">
+                    <th class="p-4">City</th>
+                    <th class="p-4">MAE (€)</th>
+                    <th class="p-4">MAPE (%)</th>
+                    <th class="p-4">R²</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-700 bg-[#202940]">
+                {% for c in city_stats %}
+                <tr class="hover:bg-[#2C3854] transition-colors">
+                    <td class="p-4 font-bold text-cyan-300">{{ c.city }}</td>
+                    <td class="p-4">€{{ c.mae }}</td>
+                    <td class="p-4">{{ c.mape }}%</td>
+                    <td class="p-4">{{ c.r2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Nav Button -->
+    <a href="{{ url_for('dashboard') }}"
+       class="px-6 py-3 bg-cyan-500 text-gray-900 font-bold rounded-lg hover:bg-cyan-400 transition">
+        ⬅ Back to Dashboard
+    </a>
+
+</div>
+
+{% endblock %}

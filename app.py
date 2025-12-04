@@ -150,6 +150,54 @@ def dashboard():
                            results=results,
                            total_results=len(df))
 
+# ------------------------------
+# Performance Dashboard
+# ------------------------------
+@app.route("/performance")
+def performance():
+    local_out = "/tmp/out.csv"
+
+    # Try to download the latest results
+    try:
+        s3.download_file(S3_BUCKET, RESULT_FILE, local_out)
+    except Exception as e:
+        return f"Results file missing: {e}"
+
+    df = pd.read_csv(local_out)
+
+    # --- Compute Metrics ---
+    from sklearn.metrics import mean_absolute_error, r2_score
+
+    y_true = df["price"]
+    y_pred = df["predicted_price"]
+
+    mae = mean_absolute_error(y_true, y_pred)
+    mape = (abs((y_true - y_pred) / y_true).mean()) * 100
+    r2 = r2_score(y_true, y_pred)
+
+    # --- Per-City Breakdown ---
+    city_stats = []
+    for city in df["city"].unique():
+        sub = df[df["city"] == city]
+        c_mae = mean_absolute_error(sub["price"], sub["predicted_price"])
+        c_mape = (abs((sub["price"] - sub["predicted_price"]) / sub["price"]).mean()) * 100
+        c_r2 = r2_score(sub["price"], sub["predicted_price"])
+        city_stats.append({
+            "city": city,
+            "mae": round(c_mae, 2),
+            "mape": round(c_mape, 2),
+            "r2": round(c_r2, 3)
+        })
+
+    return render_template(
+        "performance.html",
+        mae=round(mae, 2),
+        mape=round(mape, 2),
+        r2=round(r2, 3),
+        city_stats=city_stats
+    )
+
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
