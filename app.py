@@ -26,19 +26,18 @@ def upload():
         f = request.files.get("file")
         filename = secure_filename(f.filename)
 
-        # Save to temp
         local_path = f"/tmp/{filename}"
         f.save(local_path)
 
-        # Upload to S3
+        # Upload file
         s3.upload_file(local_path, S3_BUCKET, RAW_PREFIX + filename)
-        flash("File uploaded to S3. Running inference now...", "info")
+        flash("File uploaded. Running inference...", "info")
 
-        # Run inference
+        # Run inference script
         try:
             cmd = ["python3", "pipline_infer.py", filename]
             subprocess.run(cmd, check=True)
-            flash("Inference complete! Updated results available.", "success")
+            flash("Inference complete!", "success")
         except Exception as e:
             flash(f"Inference FAILED: {e}", "danger")
 
@@ -52,28 +51,27 @@ def upload():
 # ------------------------------
 @app.route("/", methods=["GET"])
 def dashboard():
+
     local_out = "/tmp/out.csv"
 
-    # Try downloading results
     try:
         s3.download_file(S3_BUCKET, RESULT_FILE, local_out)
     except:
         return render_template("index.html",
                                results=[],
                                cities=[],
-                               neighbourhoods=[],
                                total_results=0)
 
     df = pd.read_csv(local_out)
 
-    # Friendly rename
+    # ---- Correct renaming (your CSV fields!) ----
     df = df.rename(columns={
-        "distance_to_center": "dist_center_km",
+        "distance_to_city_center": "dist_center_m",
         "distance_to_metro": "dist_metro_m",
         "assetId": "assetid"
     })
 
-    # Ensure arbitrage_score exists
+    # Arbitrage fallback
     if "arbitrage_score" not in df.columns:
         df["arbitrage_score"] = df["predicted_price"] - df["price"]
 
@@ -85,27 +83,27 @@ def dashboard():
 
     filtered = df.copy()
 
-    # City filter
     if selected_city != "All":
         filtered = filtered[filtered["city"] == selected_city]
 
-    # Rooms / Baths filter
     filtered = filtered[
         (filtered["roomnumber"] >= selected_rooms) &
         (filtered["bathnumber"] >= selected_baths)
     ]
 
-    # Parking filter
     if selected_parking != "All":
         filtered = filtered[
             filtered["hasparkingspace"] == (selected_parking == "Yes")
         ]
 
-    # Rename for UI
+    # ---- Rename for UI ----
     filtered = filtered.rename(columns={
         "roomnumber": "rooms",
         "bathnumber": "bathrooms",
         "hasparkingspace": "has_parking",
+        # IMPORTANT: distance fields for UI
+        "distance_to_city_center": "dist_center_m",
+        "distance_to_metro": "dist_metro_m"
     })
 
     results = filtered.to_dict(orient="records")
