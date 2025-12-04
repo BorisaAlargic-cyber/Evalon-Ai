@@ -3,9 +3,11 @@ import pandas as pd
 import numpy as np
 import pickle
 import boto3
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+from sklearn.metrics import r2_score, mean_absolute_error
 from sklearn.ensemble import RandomForestRegressor
 
 # ------------ AWS CONFIG ------------
@@ -33,7 +35,7 @@ def clean_and_engineer(df):
     df = df.copy()
     df.columns = [c.lower() for c in df.columns]
 
-    numeric_cols = ["price","constructedarea","bathnumber","roomnumber","unitprice",
+    numeric_cols = ["price","constructedarea","bathnumber","roomnumber",
                     "latitude","longitude","builtyear"]
     for col in numeric_cols:
         if col in df.columns:
@@ -77,21 +79,42 @@ def build_model(X):
 
     return Pipeline([("pre", pre), ("model", model)])
 
-# ----------- TRAIN + SAVE MODEL -----------
+# ----------- TRAIN + TEST SPLIT + SAVE MODEL -----------
 def train_and_save_model(df, city):
     df_city = df[df["city"] == city].copy()
 
     X = df_city[get_features(df_city)]
-    y = np.log1p(df_city["price"])
+    y = np.log1p(df_city["price"])  # log-transform
 
-    pipeline = build_model(X)
-    pipeline.fit(X, y)
+    # ---- TRAIN-TEST SPLIT ----
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.20, random_state=42
+    )
 
+    pipeline = build_model(X_train)
+    pipeline.fit(X_train, y_train)
+
+    # ---- Evaluation ----
+    preds = pipeline.predict(X_test)
+    preds = np.expm1(preds)      # back-transform to €
+    y_test_eur = np.expm1(y_test)
+
+    r2 = r2_score(y_test_eur, preds)
+    mae = mean_absolute_error(y_test_eur, preds)
+
+    print(f"\n==============================")
+    print(f"   {city} MODEL PERFORMANCE")
+    print(f"==============================")
+    print(f"R² Score:          {r2:.4f}")
+    print(f"MAE (mean abs err): €{mae:,.2f}")
+    print(f"==============================\n")
+
+    # ---- SAVE MODEL ----
     filename = f"model_{city}.pkl"
     with open(filename, "wb") as f:
         pickle.dump(pipeline, f)
 
-    print(f"[+] Trained model: {filename}")
+    print(f"[+] Saved model: {filename}")
 
     # Upload to S3
     s3.upload_file(filename, S3_BUCKET, MODEL_PREFIX + filename)
