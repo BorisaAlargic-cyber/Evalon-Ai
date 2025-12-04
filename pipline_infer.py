@@ -89,7 +89,7 @@ def run_inference(upload_filename):
     print(f"    - Loaded {len(df):,} rows.")
 
     # --- NEW: SAMPLE ONLY 50K ROWS TO REDUCE MEMORY ---
-    MAX_ROWS = 50000
+    MAX_ROWS = 5000
     if len(df) > MAX_ROWS:
         print(f"[!] Dataset has {len(df):,} rows — sampling down to {MAX_ROWS:,} rows...")
         df = df.sample(n=MAX_ROWS, random_state=42).reset_index(drop=True)
