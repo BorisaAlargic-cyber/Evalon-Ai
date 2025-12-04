@@ -36,7 +36,7 @@ def upload():
 
         # Run inference
         try:
-            cmd = ["python3", "pipeline_infer.py", filename]
+            cmd = ["python3", "pipline_infer.py", filename]
             subprocess.run(cmd, check=True)
             flash("Inference complete! Updated results available.", "success")
         except Exception as e:
