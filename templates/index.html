@@ -66,24 +66,26 @@
                 </select>
             </div>
 
+                        <!-- SORTING -->
+            <div class="filter-group">
+                <label class="text-blue-200 mb-2 font-semibold">Sort Results</label>
+                    <select name="sort" class="w-full p-2.5 bg-gray-700 border border-gray-600 rounded text-white">
+                        <option value="none">No Sorting</option>
+                        <option value="arbitrage_desc" {% if sort_option == "arbitrage_desc" %}selected{% endif %}>
+                            Highest Arbitrage €
+                        </option>
+                        <option value="undervaluation_desc" {% if sort_option == "undervaluation_desc" %}selected{% endif %}>
+                            Highest Undervaluation %
+                        </option>
+                    </select>
+            </div>
+            
+
             <button type="submit"
                     class="w-full py-3 bg-cyan-500 hover:bg-cyan-400 text-gray-900 font-bold rounded-lg transition-all flex gap-2 justify-center">
                 <i class="fa-solid fa-magnifying-glass-chart"></i> Apply Filters
             </button>
 
-            <!-- SORTING -->
-            <div class="filter-group">
-                <label class="text-blue-200 mb-2 font-semibold">Sort Results</label>
-                <select name="sort" class="w-full p-2.5 bg-gray-700 border border-gray-600 rounded text-white">
-                    <option value="none">No Sorting</option>
-                    <option value="arbitrage_desc" {% if sort_option == "arbitrage_desc" %}selected{% endif %}>
-                        Highest Arbitrage €
-                    </option>
-                    <option value="undervaluation_desc" {% if sort_option == "undervaluation_desc" %}selected{% endif %}>
-                        Highest Undervaluation %
-                    </option>
-                </select>
-            </div>
 
 
         </form>
