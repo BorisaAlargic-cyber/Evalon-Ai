@@ -17,27 +17,28 @@ app = Flask(__name__)
 app.secret_key = "supersecretkey"
 
 
-# ------------------------------
-# Upload + AUTO RUN INFERENCE
-# ------------------------------
+# =====================================================
+# UPLOAD + AUTO RUN INFERENCE
+# =====================================================
 @app.route("/upload", methods=["GET", "POST"])
 def upload():
     if request.method == "POST":
         f = request.files.get("file")
         filename = secure_filename(f.filename)
 
+        # Save local temp
         local_path = f"/tmp/{filename}"
         f.save(local_path)
 
-        # Upload file
+        # Upload raw CSV to S3
         s3.upload_file(local_path, S3_BUCKET, RAW_PREFIX + filename)
-        flash("File uploaded. Running inference...", "info")
+        flash("File uploaded to S3. Running inference...", "info")
 
-        # Run inference script
+        # RUN PIPELINE
         try:
             cmd = ["python3", "pipline_infer.py", filename]
             subprocess.run(cmd, check=True)
-            flash("Inference complete!", "success")
+            flash("Inference complete! Dashboard updated.", "success")
         except Exception as e:
             flash(f"Inference FAILED: {e}", "danger")
 
@@ -46,14 +47,16 @@ def upload():
     return render_template("upload.html")
 
 
-# ------------------------------
-# Dashboard
-# ------------------------------
+
+# =====================================================
+# DASHBOARD
+# =====================================================
 @app.route("/", methods=["GET"])
 def dashboard():
 
     local_out = "/tmp/out.csv"
 
+    # Download inference results from S3
     try:
         s3.download_file(S3_BUCKET, RESULT_FILE, local_out)
     except:
@@ -64,49 +67,58 @@ def dashboard():
 
     df = pd.read_csv(local_out)
 
-    # ---- Correct renaming (your CSV fields!) ----
+    # Rename-fields for UI
     df = df.rename(columns={
-        "distance_to_city_center": "dist_center_m",
+        "distance_to_center": "dist_center_m",
         "distance_to_metro": "dist_metro_m",
         "assetId": "assetid"
     })
 
-    # Arbitrage fallback
+    # Ensure arbitrage exists
     if "arbitrage_score" not in df.columns:
         df["arbitrage_score"] = df["predicted_price"] - df["price"]
 
-    # Filters
+    # Add undervaluation % (NEW)
+    df["undervaluation_pct"] = (
+        (df["predicted_price"] - df["price"]) / df["price"] * 100
+    ).fillna(0)
+
+
+    # ---------------- FILTERS ----------------
     selected_city = request.args.get("city", "All")
     selected_rooms = int(request.args.get("rooms", 1))
     selected_baths = int(request.args.get("bathrooms", 1))
     selected_parking = request.args.get("parking", "All")
 
+
     filtered = df.copy()
 
+    # City
     if selected_city != "All":
         filtered = filtered[filtered["city"] == selected_city]
 
+    # Rooms + bathrooms
     filtered = filtered[
         (filtered["roomnumber"] >= selected_rooms) &
         (filtered["bathnumber"] >= selected_baths)
     ]
 
+    # Parking
     if selected_parking != "All":
         filtered = filtered[
             filtered["hasparkingspace"] == (selected_parking == "Yes")
         ]
 
-    # ---- Rename for UI ----
+    # Backend → UI rename
     filtered = filtered.rename(columns={
         "roomnumber": "rooms",
         "bathnumber": "bathrooms",
         "hasparkingspace": "has_parking",
-        # IMPORTANT: distance fields for UI
-        "distance_to_city_center": "dist_center_m",
-        "distance_to_metro": "dist_metro_m"
     })
 
+    # Convert to dict for Jinja
     results = filtered.to_dict(orient="records")
+
 
     return render_template("index.html",
                            cities=sorted(df["city"].unique()),
@@ -116,6 +128,7 @@ def dashboard():
                            selected_parking=selected_parking,
                            results=results,
                            total_results=len(df))
+
 
 
 if __name__ == "__main__":
