@@ -51,34 +51,36 @@ def dashboard():
         return render_template("index.html",
                                results=[],
                                cities=[],
+                               neighbourhoods=[],
                                total_results=0)
 
     df = pd.read_csv(local_out)
 
-    # Rename for UI consistency
+    # Visual rename for UI
     df = df.rename(columns={
         "distance_to_center": "dist_center_km",
+        "distance_to_metro": "dist_metro_m",
         "assetId": "assetid"
     })
 
-    # Make sure arbitrage exists
-    df["arbitrage_score"] = df["predicted_price"] - df["price"]
+    # Ensure arbitrage column exists
+    if "arbitrage_score" not in df.columns:
+        df["arbitrage_score"] = df["predicted_price"] - df["price"]
 
-    # ---------------------------
-    # FILTERS
-    # ---------------------------
+    # Get filters
     selected_city = request.args.get("city", "All")
     selected_rooms = int(request.args.get("rooms", 1))
     selected_baths = int(request.args.get("bathrooms", 1))
     selected_parking = request.args.get("parking", "All")
 
+    # Start filtering
     filtered = df.copy()
 
     # City filter
     if selected_city != "All":
         filtered = filtered[filtered["city"] == selected_city]
 
-    # Rooms/Baths filter
+    # Rooms + Bathrooms filter (CSV fields!)
     filtered = filtered[
         (filtered["roomnumber"] >= selected_rooms) &
         (filtered["bathnumber"] >= selected_baths)
@@ -90,7 +92,7 @@ def dashboard():
             filtered["hasparkingspace"] == (selected_parking == "Yes")
         ]
 
-    # Rename for template
+    # 🟢 Rename backend → frontend fields
     filtered = filtered.rename(columns={
         "roomnumber": "rooms",
         "bathnumber": "bathrooms",
@@ -101,6 +103,7 @@ def dashboard():
 
     return render_template("index.html",
                            cities=sorted(df["city"].unique()),
+                           neighbourhoods=[],
                            selected_city=selected_city,
                            selected_rooms=selected_rooms,
                            selected_baths=selected_baths,
